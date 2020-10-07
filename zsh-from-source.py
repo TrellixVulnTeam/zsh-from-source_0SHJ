@@ -40,13 +40,33 @@ def build_gdbm(directory):
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
+            prefix = os.path.join(os.getcwd(), 'gdbm')
             e = dict(os.environ)
             e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fcommon"
             subprocess.run(("./configure", "--enable-shared=no", "--enable-libgdbm-compat",
-                            f"--prefix={os.path.join(os.getcwd(), 'gdbm')}"), env=e).check_returncode()
+                            f"--prefix={prefix}"), env=e).check_returncode()
             subprocess.run(("make"), env=e).check_returncode()
             subprocess.run(("make", "check"), env=e).check_returncode()
             subprocess.run(("make", "install"), env=e).check_returncode()
+            return prefix
+
+
+def build_ncurses(directory):
+    with cd(directory):
+        version = "6.2"
+        subprocess.run(("wget", f"https://ftp.gnu.org/pub/gnu/ncurses/ncurses-{version}.tar.gz")).check_returncode()
+        source_dir = None
+        with tarfile.open(f"ncurses-{version}.tar.gz", 'r') as tar:
+            tar.extractall()
+            source_dir = tar.getmembers()[0].name
+
+        with cd(source_dir):
+            prefix = os.path.join(os.getcwd(), 'ncurses')
+            subprocess.run(("./configure", "--without-shared", "--without-debug", "--without-ada", "--without-cxx", "--without-cxx-binding",
+                            f"--prefix={prefix}")).check_returncode()
+            subprocess.run(("make")).check_returncode()
+            subprocess.run(("make", "install")).check_returncode()
+            return prefix
 
 
 def download_zsh():
@@ -61,23 +81,32 @@ def build_zsh(source_dir, install_prefix=None):
         gdbm_dir = os.path.join(source_dir, "gdbm")
         if not os.path.exists(gdbm_dir):
             os.makedirs(gdbm_dir)
-            build_gdbm(gdbm_dir)
+            gdbm_dir = build_gdbm(gdbm_dir)
 
-        configure_cmd_line = ["./configure"]
+        ncurses_dir = os.path.join(source_dir, "ncurses")
+        if not os.path.exists(ncurses_dir):
+            os.makedirs(ncurses_dir)
+            ncurses_dir = build_ncurses(ncurses_dir)
+
+        e = dict(os.environ)
+        e['CFLAGS'] = f"{e.get('CFLAGS', '')} -I{gdbm_dir}/include -I{ncurses_dir}/include"
+        e['LDFLAGS'] = f"{e.get('LDFLAGS', '')} -L{gdbm_dir}/lib -L{ncurses_dir}/lib"
+
+        configure_cmd_line = ["./configure", "--disable-dynamic"]
         if install_prefix:
             configure_cmd_line.append(f"--prefix={install_prefix}")
 
-        configure = subprocess.run(configure_cmd_line)
+        configure = subprocess.run(configure_cmd_line, env=e)
         if configure.returncode != 0:
             log(logging.ERROR, configure.stderr)
             configure.check_returncode()
 
-        build = subprocess.run(("make"))
+        build = subprocess.run(("make"), env=e)
         if build.returncode != 0:
             log(logging.ERROR, build.stderr)
             build.check_returncode()
 
-        install = subprocess.run(("make", "install"))
+        install = subprocess.run(("make", "install"), env=e)
         if install.returncode != 0:
             install.check_returncode()
 
