@@ -42,7 +42,7 @@ def build_gdbm(directory):
         with cd(source_dir):
             prefix = os.path.join(os.getcwd(), 'gdbm')
             e = dict(os.environ)
-            e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fcommon"
+            e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fcommon -fPIC"
             subprocess.run(("./configure", "--enable-shared=no", "--enable-libgdbm-compat",
                             f"--prefix={prefix}"), env=e).check_returncode()
             subprocess.run(("make"), env=e).check_returncode()
@@ -61,11 +61,13 @@ def build_ncurses(directory):
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
+            e = dict(os.environ)
+            e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fPIC"
             prefix = os.path.join(os.getcwd(), 'ncurses')
             subprocess.run(("./configure", "--without-shared", "--without-debug", "--without-ada", "--without-cxx", "--without-cxx-binding",
-                            f"--prefix={prefix}")).check_returncode()
-            subprocess.run(("make")).check_returncode()
-            subprocess.run(("make", "install")).check_returncode()
+                            f"--prefix={prefix}"), env=e).check_returncode()
+            subprocess.run(("make"), env=e).check_returncode()
+            subprocess.run(("make", "install"), env=e).check_returncode()
             return prefix
 
 
@@ -92,7 +94,7 @@ def build_zsh(source_dir, install_prefix=None):
         e['CFLAGS'] = f"{e.get('CFLAGS', '')} -I{gdbm_dir}/include -I{ncurses_dir}/include"
         e['LDFLAGS'] = f"{e.get('LDFLAGS', '')} -L{gdbm_dir}/lib -L{ncurses_dir}/lib"
 
-        configure_cmd_line = ["./configure", "--disable-dynamic"]
+        configure_cmd_line = ["./configure"]
         if install_prefix:
             configure_cmd_line.append(f"--prefix={install_prefix}")
 
