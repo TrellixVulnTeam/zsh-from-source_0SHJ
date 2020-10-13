@@ -2,10 +2,11 @@
 
 import argparse
 import contextlib
+import copy
 import logging
 import os
+import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 
@@ -30,7 +31,7 @@ def cd(newdir):
         os.chdir(prevdir)
 
 
-def build_gdbm(directory):
+def build_gdbm(directory, env, install_prefix=None):
     with cd(directory):
         version = "latest"
         subprocess.run(("wget", f"https://ftp.gnu.org/gnu/gdbm/gdbm-{version}.tar.gz")).check_returncode()
@@ -40,8 +41,8 @@ def build_gdbm(directory):
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
-            prefix = os.path.join(os.getcwd(), 'gdbm')
-            e = dict(os.environ)
+            prefix = install_prefix if install_prefix else os.path.join(os.getcwd(), 'gdbm')
+            e = copy.copy(env)
             e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fcommon -fPIC"
             subprocess.run(("./configure", "--enable-shared=no", "--enable-libgdbm-compat",
                             f"--prefix={prefix}"), env=e).check_returncode()
@@ -51,7 +52,7 @@ def build_gdbm(directory):
             return prefix
 
 
-def build_ncurses(directory):
+def build_ncurses(directory, env, install_prefix=None):
     with cd(directory):
         version = "6.2"
         subprocess.run(("wget", f"https://ftp.gnu.org/pub/gnu/ncurses/ncurses-{version}.tar.gz")).check_returncode()
@@ -61,13 +62,16 @@ def build_ncurses(directory):
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
-            e = dict(os.environ)
+            e = copy.copy(env)
             e["CFLAGS"] = f"{e.get('CFLAGS', '')} -fPIC"
-            prefix = os.path.join(os.getcwd(), 'ncurses')
+            prefix = install_prefix if install_prefix else os.path.join(os.getcwd(), "ncurses")
             subprocess.run(("./configure", "--without-shared", "--without-debug", "--without-ada", "--without-cxx", "--without-cxx-binding",
-                            f"--prefix={prefix}"), env=e).check_returncode()
+                            "--enable-widec", f"--prefix={prefix}"), env=e).check_returncode()
             subprocess.run(("make"), env=e).check_returncode()
             subprocess.run(("make", "install"), env=e).check_returncode()
+            home_terminfo = os.path.join(os.path.expanduser('~'), ".terminfo")
+            if not os.path.exists(home_terminfo):
+                shutil.copytree(os.path.join(prefix, "share", "terminfo"), )
             return prefix
 
 
@@ -80,19 +84,14 @@ def download_zsh():
 
 def build_zsh(source_dir, install_prefix=None):
     with cd(source_dir):
-        gdbm_dir = os.path.join(source_dir, "gdbm")
-        if not os.path.exists(gdbm_dir):
-            os.makedirs(gdbm_dir)
-            gdbm_dir = build_gdbm(gdbm_dir)
-
-        ncurses_dir = os.path.join(source_dir, "ncurses")
-        if not os.path.exists(ncurses_dir):
-            os.makedirs(ncurses_dir)
-            ncurses_dir = build_ncurses(ncurses_dir)
-
         e = dict(os.environ)
-        e['CFLAGS'] = f"{e.get('CFLAGS', '')} -I{gdbm_dir}/include -I{ncurses_dir}/include"
-        e['LDFLAGS'] = f"{e.get('LDFLAGS', '')} -L{gdbm_dir}/lib -L{ncurses_dir}/lib"
+        for name in ("ncurses", "gdbm"):
+            d = os.path.join(source_dir, name)
+            if not os.path.exists(d):
+                os.makedirs(d)
+                d = globals()[f"build_{name}"](d, e)
+            e['CFLAGS'] = f"{e.get('CFLAGS', '')} -I{d}/include"
+            e['LDFLAGS'] = f"{e.get('LDFLAGS', '')} -L{d}/lib"
 
         configure_cmd_line = ["./configure"]
         if install_prefix:
