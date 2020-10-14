@@ -71,7 +71,7 @@ def build_ncurses(directory, env, install_prefix=None):
             subprocess.run(("make", "install"), env=e).check_returncode()
             home_terminfo = os.path.join(os.path.expanduser('~'), ".terminfo")
             if not os.path.exists(home_terminfo):
-                shutil.copytree(os.path.join(prefix, "share", "terminfo"), )
+                shutil.copytree(os.path.join(prefix, "share", "terminfo"), home_terminfo)
             return prefix
 
 
