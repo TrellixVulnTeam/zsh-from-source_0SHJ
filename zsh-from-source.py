@@ -37,7 +37,26 @@ def build_gdbm(directory, env, install_prefix=None):
         subprocess.run(("wget", f"https://ftp.gnu.org/gnu/gdbm/gdbm-{version}.tar.gz")).check_returncode()
         source_dir = None
         with tarfile.open(f"gdbm-{version}.tar.gz", 'r') as tar:
-            tar.extractall()
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar)
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
@@ -58,7 +77,26 @@ def build_ncurses(directory, env, install_prefix=None):
         subprocess.run(("wget", f"https://ftp.gnu.org/pub/gnu/ncurses/ncurses-{version}.tar.gz")).check_returncode()
         source_dir = None
         with tarfile.open(f"ncurses-{version}.tar.gz", 'r') as tar:
-            tar.extractall()
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar)
             source_dir = tar.getmembers()[0].name
 
         with cd(source_dir):
@@ -78,7 +116,26 @@ def build_ncurses(directory, env, install_prefix=None):
 def download_zsh():
     subprocess.run(("wget", f"https://www.zsh.org/pub/zsh-{DEFAULT_VERSION}.tar.xz")).check_returncode()
     with tarfile.open(f"zsh-{DEFAULT_VERSION}.tar.xz", 'r') as tar:
-        tar.extractall()
+        def is_within_directory(directory, target):
+            
+            abs_directory = os.path.abspath(directory)
+            abs_target = os.path.abspath(target)
+        
+            prefix = os.path.commonprefix([abs_directory, abs_target])
+            
+            return prefix == abs_directory
+        
+        def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+        
+            for member in tar.getmembers():
+                member_path = os.path.join(path, member.name)
+                if not is_within_directory(path, member_path):
+                    raise Exception("Attempted Path Traversal in Tar File")
+        
+            tar.extractall(path, members, numeric_owner=numeric_owner) 
+            
+        
+        safe_extract(tar)
     return os.path.join(os.getcwd(), f"zsh-{DEFAULT_VERSION}")
 
 
